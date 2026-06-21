@@ -1,0 +1,51 @@
+# Automatically analyzes failed GitHub Actions workflows using a free LLM.
+# Triggers whenever any other workflow in this repo fails.
+#
+# Setup:
+#   1. Choose ONE of:
+#      a) Gemini (default): Add GEMINI_API_KEY as a repo secret
+#         -> Get free key at https://aistudio.google.com/apikey
+#      b) GitHub Models: Change LLM_PROVIDER to "github_models" below
+#         -> Uses your existing GITHUB_TOKEN (no extra key needed)
+
+name: "Failure Analyzer"
+
+on:
+  workflow_run:
+    workflows: ["*"]
+    types: [completed]
+
+jobs:
+  analyze:
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Analyze failure
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          FAILED_RUN_ID: ${{ github.event.workflow_run.id }}
+
+          # -- Pick ONE provider --
+          # Option A: Google Gemini (free, 1500 requests/day)
+          LLM_PROVIDER: "gemini"
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
+          # Option B: GitHub Models (free, uses your GITHUB_TOKEN)
+          # LLM_PROVIDER: "github_models"
+
+        run: python analyze_failure.py
